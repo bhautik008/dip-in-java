@@ -2,6 +2,9 @@ package com.dip.filter;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
+import java.awt.image.BufferedImageOp;
+import java.awt.image.ConvolveOp;
+import java.awt.image.Kernel;
 
 import com.dip.image.MakeImage;
 
@@ -159,7 +162,10 @@ public class EdgeDetection {
 //						{-1,8,-1},
 //						{-1,-1,-1},
 //						};
-//		kernel[1][1] += sigma; 
+//		kernel[1][1] += sigma;
+		int mask;
+		
+		//float[] kernelMatrix = {-1,-1,-1,-1,(float) (8+sigma),-1,-1,-1};
 		
 		BufferedImage newImage  = new BufferedImage(width, height, mi.getType());
 		for(int x=0;x<width;x++) {
@@ -167,8 +173,34 @@ public class EdgeDetection {
 				int originalPixel = mi.getPixel(x, y);
 				int blurPixel = blurImg.getPixel(x, y);
 				
-				int result = (int) (sigma*originalPixel - blurPixel);
+				mask = originalPixel - blurPixel;
+				
+				int result = (int) ((sigma*originalPixel) + mask);
+				
 				newImage.setRGB(x, y, result);
+			}
+		}
+		//BufferedImageOp op = new ConvolveOp(new Kernel(3, 3, kernelMatrix));
+		//newImage = op.filter(blurImg.getBufferedImage(), newImage);
+		return newImage;
+	}
+	
+	public static BufferedImage applyUnsharpMasking(MakeImage mi, MakeImage blurImg) {
+		int width = mi.getWidth();
+		int height = mi.getHeight();
+		
+		BufferedImage newImage = new BufferedImage(width, height, mi.getType());
+		
+		int mask;
+		for(int y=0;y<height;y++) {
+			for(int x=0;x<width;x++) {
+				int originalPixel = mi.getPixel(x, y);
+				int blurPixel = blurImg.getPixel(x, y);
+				
+				mask = originalPixel - blurPixel;
+				
+				int p = originalPixel + mask;
+				newImage.setRGB(x, y, p);
 			}
 		}
 		
