@@ -5,6 +5,8 @@ import java.awt.Graphics;
 import java.awt.Image;
 import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
+import java.awt.image.DataBufferInt;
 import java.awt.image.WritableRaster;
 import java.io.File;
 import java.io.IOException;
@@ -18,6 +20,9 @@ public class MakeImage {
 	private BufferedImage bufferedImage;
     private int[][] pixels;
     private boolean isImport = false;
+    private int strideX, strideY;
+    private int[] pixelRasterInt;
+    private byte[] pixelRasterByte;
     
 	public enum ColorScale{
 		Grayscale,
@@ -28,25 +33,25 @@ public class MakeImage {
 	public MakeImage(MakeImage mi) {
 		this.bufferedImage = mi.getBufferedImage();
 		this.isImport = true;
-		refresh();
+		prepare();
 	}
 	
 	public MakeImage(BufferedImage img) {
 		this.bufferedImage = img;
 		this.isImport = true;
-		refresh();
+		prepare();
 	}
 	
 	public MakeImage(Image img) {
 		this.bufferedImage = (BufferedImage) img;
 		this.isImport = true;
-		refresh();
+		prepare();
 	}
 	
 	public MakeImage(ImageIcon img) {
 		this.bufferedImage = (BufferedImage) img.getImage();
 		this.isImport = true;
-		refresh();
+		prepare();
 	}
 	
 	public MakeImage(String path) {
@@ -56,7 +61,7 @@ public class MakeImage {
 		} catch(IOException e) {
 			e.printStackTrace();
 		}
-		refresh();
+		prepare();
 	}
 	
 	public MakeImage(int width, int height) {
@@ -81,17 +86,31 @@ public class MakeImage {
 		matrixToImage(image);
 	}
 	
+	public void prepare() {
+		if(getType() == BufferedImage.TYPE_BYTE_GRAY) {
+			refresh();
+		} else if(getType() == BufferedImage.TYPE_INT_ARGB || getType() == BufferedImage.TYPE_4BYTE_ABGR){
+			makeARGB();
+		} else {
+			makeRGB();
+		}
+	}
+	
 	public void refresh() {
 		int width = getWidth();
 		int height = getHeight();
-		
+		this.strideX = 1;
+		this.strideY =  getWidth();
 		this.pixels = new int[height][width];
-		
+		if(isGrayScale()) {
+			this.pixelRasterByte = getRasterByteData();
+		} else {
+			this.pixelRasterInt = getRasterIntData();
+		}
 		if(isImport) {
 			for(int i=0;i<height;i++) {
 				for(int j=0;j<width;j++) {
 					pixels[i][j] = this.bufferedImage.getRGB(j, i);
-					
 				}
 			}
 		}
@@ -106,6 +125,24 @@ public class MakeImage {
 				pixels[i][j] = 0;
 			}
 		}
+	}
+	
+	public void makeARGB() {
+		BufferedImage b = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics g = b.getGraphics();
+        g.drawImage(this.bufferedImage, 0, 0, null);
+        this.bufferedImage = b;
+        refresh();
+        g.dispose();
+	}
+	
+	public void makeRGB() {
+		BufferedImage b = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_RGB);
+        Graphics g = b.getGraphics();
+        g.drawImage(this.bufferedImage, 0, 0, null);
+        this.bufferedImage = b;
+        refresh();
+        g.dispose();
 	}
 	
 	/*
@@ -154,6 +191,48 @@ public class MakeImage {
 	
 	public int[][] getImageData(){
 		return this.pixels;
+	}
+	
+	public byte[] getRasterByteData() {
+		byte[] pixels = ((DataBufferByte)getRaster().getDataBuffer()).getData();
+		return pixels;
+	}
+	
+	public int[] getRasterIntData() {
+		int[] pixels = ((DataBufferInt)getRaster().getDataBuffer()).getData();
+		return pixels;
+	}
+	
+	public int[][] getRasterByteMatrix(){
+		int w = getWidth();
+		int h = getHeight();
+		int[][] pixels = new int[h][w];
+		
+		byte[] pixelByte = ((DataBufferByte)this.bufferedImage.getRaster().getDataBuffer()).getData();
+		
+		for(int y=0;y<h;y++) {
+			for(int x=0;x<w;x++) {
+				pixels[y][x] = pixelByte[x+y*w] & 0xFF;
+			}
+		}
+		
+		return pixels;
+	}
+	
+	public int[][] getRasterIntMatrix(){
+		int w = getWidth();
+		int h = getHeight();
+		int[][] pixels = new int[h][w];
+		
+		int[] pixelByte = ((DataBufferInt)this.bufferedImage.getRaster().getDataBuffer()).getData();
+		
+		for(int y=0;y<h;y++) {
+			for(int x=0;x<w;x++) {
+				pixels[y][x] = pixelByte[x*w+y];
+			}
+		}
+		
+		return pixels;
 	}
 	
 	/*
@@ -298,8 +377,12 @@ public class MakeImage {
 		return this.pixels[y][x];
 	}
 	
+	public int getPixelR(int x, int y) {
+		return this.pixelRasterInt[x*strideX+y*strideY];
+	}
+	
 	public int[] getRGB(int x, int y) {
-		int p = this.pixels[x][y];
+		int p = this.pixels[y][x];
 		int[] rgb = new int[3];
 		rgb[0] = p >> 16 & 0xff;
 		rgb[1] = p >> 8 & 0xff;
@@ -330,6 +413,10 @@ public class MakeImage {
 		p = (a<<24) | (avg<<16) | (avg<<8) | avg;
 		
 		return p;
+	}
+	
+	public int getGrayR(int x, int y) {
+		return this.pixelRasterByte[x*strideX+y*strideY] & 0xFF;
 	}
 	
 	public int getAlpha(int x, int y) {
